@@ -1,98 +1,89 @@
 # CarND-Controls-PID
 Self-Driving Car Engineer Nanodegree Program
 
+The goal of this project is to implement a PID controller that is capable of steering the simulated car on the road in the Term 2 simulator, and to tune the parameters of the controller so the car can safely drive around the course. 
+
+The controller software receives an error value from the simulator, which shows how far off is the car from the center line of the car. The PID controller has to use this error value to generate a steering angle input to the simulator.
+
+
+
+[//]: # "Image References"
+
+[image1]: ./writeup_images/rawgraphs.png "Analyzing the error data in RAWgraphs"
+[image2]: ./writeup_images/simulator2.png "Successful run with Dataset 2"
+
+
+
+## Solution approach
+
+### PID controller implementation
+
+I first set out to implement a basic PID control loop in the PID.cpp file. But there were two unusual factors when designing this control loop. One is that the simulator sends updates at a slightly irregular rate. To account for the irregularity I decided to use the time since the last event as the time base when calculating the proportional an integral errors (multiplying the current error with dt to get the integral error increment, and dividing by dt to get the current derivative).
+
+The other challenge is caused by the fact that the vehicle's speed is variable. I decided to compensate for this fact by taking the distance travelled multiplied by the distance from the centerline as the proportional error, instead of just the distance from the centerline. I considered this to be a more speed-independent measure of the error. 
+
+### Hand tuning of gains
+
+Once my PID control loop was in place, I tried to identify some approximate Kp, Ki and Kd controller terms using the Ziegler–Nichols method. I set the integral and derivative gains to zero and increased the proportional term until the car went into a more-or-less stable oscillation. The fact that the road is curved made this process quite inexact, as the turn caused a disturbance in the controller. Once I determined a reasonable estimate for this ultimate gain, I used Pessen's Integral Rule to get initial Ki and Kd terms.
+
+I used RAWgraphs to quickly visualize the data:
+
+![RAWgraphs][image1]
+
+ I ran the simulation with these values, but the car did not manage to stay on the road. The limited steering angle of the car caused a significant integral error at the tight turns, which caused the car to keep turning even after the turn was complete. This was a classic case of Integral windup. I decided to try to address this issue by reducing the integral gain. I considered putting in a mechanism to zero out the integral error when the car crossed the center line, but it didn't turn out to be necessary.
+
+I also tweaked the proportional and derivative terms until the car was able to circumnavigate the track safely.
+
+I used the following rules of thumb to tweak the parameters:
+
+- If the car went into an oscillation, it meant that the derivative term may be too low or the proportional term too high
+- If the car fell off the road on the outside of a turn, it meant that the proportional term was too low
+- If the car fell off the road on the inside of the turn, it meant that the integral term was too large
+- If the car was following the general direction of the road but kept to one side of the road it meant that the integral term was too low. 
+
+In order to control the vehicle's speed I also added a secondary PID controller to output throttle values based on a set target speed. I quickly hand-tuned it with some plausible parameters that keep the speed around the target speed and don't cause unnecessarily hard breaking or acceleration.
+
+### Fine-tuning of gains
+
+The hand-tuning resulted in an acceptable setup, but I wanted to see how fast I can get the car around the track. For this, hand tuning was too slow and labor intensive, so I investigated automated approaches. 
+
+#### Genetic Algorithms
+
+There is a significant body of publications that recommends using genetic algorithms to determine ideal gain values. The basic concept is very similar to the Particle Filter algorithm: the genetic algorithm generates, let's say 50 sets of random gains and measures the system error with each of these gains. Then the algorithm randomly selects 10 sets of gains from the initial list, with the selection probability based on the system error (the lower the error the more probable an item is to be selected).  Then it selects 10 pairs of "parents" from the list, and generates 40 new items by combining the values of the parent values (taking one of Kd, Ki, Kp from one parent, and the other two from the other, or taking the mean of the Kd, Ki, Kp parameters of the parents). Then the experiment is re-run with the new list, and the process continues until a desired low error is reached.
+
+Unfortunately for this algorithm to work, it has to be possible to run a large amount of experiments with random gain values. The way the simulator is set up, most of the gain combinations cause the car to fall of the road, at which point the simulator no longer moves the car. There is no easy way to control or restart the simulator from the controller application (other than restarting the process and using window messages to restart it, which I decided was against the spirit of the exercise). Also, the simulation only runs at real time, which also limits the speed at which experiments can be run.
+
+Due to the experiment-unfriendliness of the simulator I gave up on the Genetic Algorithm approach and decided to use a Twiddle approach instead.
+
+#### Twiddle
+
+So I implemented a Twiddle framework in the `twiddle.cpp` file. This framework takes a set of initial gains, a set of initial delta values, an initial error and goal error. The code takes the initial gains and adds the delta value to one of the gains and sets up the PID controller with these new gains. Then it observes the system error (calculated by the average square error) and if it is improved to the previous state, it keeps the new parameters and increases the corresponding delta value. If the error increases, the twiddler tries to subtract the delta from the gain in question and tests again. If this also fails to improve the error, the delta is reduced. Then the twiddler moves on to the next parameter, and repeats this until a desirable goal error is reached.
+
+In order to minimize human supervision, I set up the twiddler to approximate when the car completes a full lap (calculating the travelled distance from speed and time) and start a new step each lap. If the car falls of the road, the simulator has to be manually restarted, but the twiddler detects this scenario as well and considers that run a failed experiment.
+
+I discovered that the result of Twiddling is highly dependent on the initial hyper-parameters: the initial gains and delta values. So I tried a set of essentially random hyperparameters to get a feel for the results they produce. 
+
+Out of all the experiments I got the best results from twiddling my initial Ziegler-Nichols parameters. 
+
+### Speed control
+
+Finally I tried to see how fast the car can negotiate the course. I quickly discovered that there are some sharp turns that the car just cannot negotiate if the speed is too high, even with the best possible control. So I added a simple mechanism that check the steering output of the steering PID controller and feeds a lower target speed to the speed PID controller as the steering angle approaches. 
+
+I also tried using the error value or the accumulated integral error from the steering controller to determine  the speed, but I got the best results by using the steering angle.
+
+With this simple tweak, I managed to reach top speeds of around 60mph and go around the track in around 55 seconds. With smarter speed control I'm sure this could be improved.
+
+### Shortcomings
+
+-----
+
+The fundamental challenge of controlling the car with the PID controller this way is that the error fed into the controller is a past error, and does not take the upcoming trajectory into account. This not only causes a time delay between when the car starts drifting off the centerline and when the PID controller can react, but also makes speed control very difficult, as breaking when the car is already in a sharp turn is just too late, and in fact in the real world would exacerbate the already bad situation.
+
+So a better approach would be to do what everyone is taught at driving school and look at the path ahead when deciding throttle and steering values.
+
+## Build and execution
+
+For build and execution instructions, see [README_orig.md](README_orig.md)
+
 ---
-
-## Dependencies
-
-* cmake >= 3.5
- * All OSes: [click here for installation instructions](https://cmake.org/install/)
-* make >= 4.1(mac, linux), 3.81(Windows)
-  * Linux: make is installed by default on most Linux distros
-  * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
-  * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
-  * Linux: gcc / g++ is installed by default on most Linux distros
-  * Mac: same deal as make - [install Xcode command line tools]((https://developer.apple.com/xcode/features/)
-  * Windows: recommend using [MinGW](http://www.mingw.org/)
-* [uWebSockets](https://github.com/uWebSockets/uWebSockets)
-  * Run either `./install-mac.sh` or `./install-ubuntu.sh`.
-  * If you install from source, checkout to commit `e94b6e1`, i.e.
-    ```
-    git clone https://github.com/uWebSockets/uWebSockets 
-    cd uWebSockets
-    git checkout e94b6e1
-    ```
-    Some function signatures have changed in v0.14.x. See [this PR](https://github.com/udacity/CarND-MPC-Project/pull/3) for more details.
-* Simulator. You can download these from the [project intro page](https://github.com/udacity/self-driving-car-sim/releases) in the classroom.
-
-Fellow students have put together a guide to Windows set-up for the project [here](https://s3-us-west-1.amazonaws.com/udacity-selfdrivingcar/files/Kidnapped_Vehicle_Windows_Setup.pdf) if the environment you have set up for the Sensor Fusion projects does not work for this project. There's also an experimental patch for windows in this [PR](https://github.com/udacity/CarND-PID-Control-Project/pull/3).
-
-## Basic Build Instructions
-
-1. Clone this repo.
-2. Make a build directory: `mkdir build && cd build`
-3. Compile: `cmake .. && make`
-4. Run it: `./pid`. 
-
-Tips for setting up your environment can be found [here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/23d376c7-0195-4276-bdf0-e02f1f3c665d)
-
-## Editor Settings
-
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
-
-## Project Instructions and Rubric
-
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
-
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/e8235395-22dd-4b87-88e0-d108c5e5bbf4/concepts/6a4d8d42-6a04-4aa6-b284-1697c0fd6562)
-for instructions and the project rubric.
-
-## Hints!
-
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
 
