@@ -4,6 +4,27 @@
 #include <string>
 #include "json.hpp"
 #include "PID.h"
+#include "twiddle.hpp"
+#include <ctime>
+
+//Trying 0.316,0.241906,0.79
+//Restarting after 1200 meters 55.418
+//Error 0.791722
+
+// lower speed
+// Trying 0.311,0.241906,0.79
+// Restarting after 1200 meters 56.367
+// Error 0.761237 best error 0.798645
+// Success,
+
+//note: used Ziegler Nichols, finding the critical gain and calculating Ki and Kd from that
+// hand tuning was necessary because the steering quickly went into saturation causing a buildup of
+// the i_error.
+// Used RAWgraphs to visualize data
+// contrary to the python code the time constant was not fixed
+// speed also has an impact on steering
+// speed control is almost perfectly linear, PID controller is mostly for convenience only (reduce hard breaking, hard acceleration)
+// simulator is stochastic, the same parameters result in different run results
 
 // for convenience
 using nlohmann::json;
@@ -33,12 +54,27 @@ string hasData(string s) {
 int main() {
   uWS::Hub h;
 
-  PID pid;
+  PID pid_steering;
+  PID pid_throttle;
+  std::vector<double> initial_params{0.311,0.241906,0.79};
+  std::vector<double> deltas{0.005, 0.005, 0.005};
+  Twiddle twiddler (initial_params, deltas, 0.1, 0.95);
+  
+  auto params = twiddler.getParams();
   /**
    * TODO: Initialize the pid variable.
    */
+  
+  //pid_steering.Init(0.035, 0.016, 0.029);
+  // before speed pid_steering.Init(0.05, 0.011, 0.05);
+  //pid_steering.Init(0.1, 0.1, 0.3);
+  pid_steering.Init(params[0], params[1], params[2]);
+  pid_throttle.Init(0.2, 0, 0.08);
+//  pid_throttle.Init(0.016, 0.0074, 0.025);
+  
+  auto t_start = std::chrono::high_resolution_clock::now();
 
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, 
+  h.onMessage([&pid_steering, &pid_throttle, &t_start, &twiddler](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -51,12 +87,33 @@ int main() {
 
         string event = j[0].get<string>();
 
+//        std::cout << "Event " << event << std::endl;
         if (event == "telemetry") {
           // j[1] is the data JSON object
           double cte = std::stod(j[1]["cte"].get<string>());
           double speed = std::stod(j[1]["speed"].get<string>());
           double angle = std::stod(j[1]["steering_angle"].get<string>());
-          double steer_value;
+          
+          
+          
+          double dist = pid_steering.TotalDistance();
+          if (dist > 1100)
+          {
+            std::cout << "Restarting after 1200 meters " << pid_steering.TotalTime() << std::endl;
+            auto params = twiddler.getParams();
+            if (twiddler.isGoalReached())
+            {
+              std::cout << "Goal is reached!!! " << twiddler.best_error << "," << params[0] << "," << params[1] << "," << params[2] << std::endl;
+            }
+
+            twiddler.success(pid_steering.TotalError());
+            params = twiddler.getParams();
+            pid_steering.Init(params[0], params[1], params[2]);
+            std::cout << "Best error " << twiddler.best_error << " Trying " << params[0] << "," << params[1] << "," << params[2] << std::endl;
+          }
+          
+          
+          
           /**
            * TODO: Calculate steering value here, remember the steering value is
            *   [-1, 1].
@@ -64,15 +121,31 @@ int main() {
            *   Maybe use another PID controller to control the speed!
            */
           
+
+          double steer_value = pid_steering.GetControlValue(cte, 1, speed/2.23694);
+          double target_speed = 60-(
+                                    abs(steer_value) < 0.2 ? 0 : ((abs(steer_value)-0.2)*2)
+                                   ); //(abs(steer_value*40));
+          
+          //std::cout << "steer " << steer_value << " i err " << pid_steering.GetIError() << " cte " << cte << std::endl;
+          if (target_speed < 10)
+          {
+            target_speed = 10;
+          }
+          double speed_cte = speed-target_speed;
+          double throttle_value = pid_throttle.GetControlValue(speed_cte, 1, 0);
+          
+          
           // DEBUG
-          std::cout << "CTE: " << cte << " Steering Value: " << steer_value 
-                    << std::endl;
+          auto t_curr = std::chrono::high_resolution_clock::now();
+          int elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t_curr-t_start).count();
+//          std::cout << elapsed << "," << cte << "," << steer_value << "," << speed_cte << "," << throttle_value << "," << speed << std::endl;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3;
+          msgJson["throttle"] = throttle_value;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+          //std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }  // end "telemetry" if
       } else {
@@ -83,14 +156,43 @@ int main() {
     }  // end websocket message if
   }); // end h.onMessage
 
-  h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
-    std::cout << "Connected!!!" << std::endl;
+  h.onConnection([&h, &pid_throttle, &pid_steering, &twiddler](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
+    std::cout << "Connected!!!" << std::endl<< std::endl<< std::endl<< std::endl;
+    double dist = pid_steering.TotalDistance();
+    std::cout << "Total distance driven " << dist << std::endl;
+
+    auto params = twiddler.getParams();
+    if (twiddler.isGoalReached())
+    {
+      std::cout << "Goal is reached!!! " << twiddler.best_error << "," << params[0] << "," << params[1] << "," << params[2] << std::endl;
+    }
+
+
+    if (dist > 1000)
+    {
+      twiddler.success(pid_steering.TotalError());
+    }
+    else
+    {
+      if (dist != 0)
+      {
+        twiddler.failure();
+      }
+    }
+    pid_throttle.Reset();
+    pid_steering.Reset();
+    params = twiddler.getParams();
+    pid_steering.Init(params[0], params[1], params[2]);
+    std::cout << "Best error " << twiddler.best_error << " Trying " << params[0] << "," << params[1] << "," << params[2] << std::endl;
+
   });
 
-  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, 
+  h.onDisconnection([&h,&twiddler, &pid_steering](uWS::WebSocket<uWS::SERVER> ws, int code,
                          char *message, size_t length) {
     ws.close();
     std::cout << "Disconnected" << std::endl;
+    double dist = pid_steering.TotalDistance();
+    std::cout << "Total distance driven " << dist << std::endl;
   });
 
   int port = 4567;
