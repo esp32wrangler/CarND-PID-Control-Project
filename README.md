@@ -49,21 +49,23 @@ The hand-tuning resulted in an acceptable setup, but I wanted to see how fast I 
 
 #### Genetic Algorithms
 
-There is a significant body of publications that recommends using genetic algorithms to determine ideal gain values. The basic concept is very similar to the Particle Filter algorithm: the genetic algorithm generates, let's say 50 sets of random gains and measures the system error with each of these gains. Then the algorithm randomly selects 10 sets of gains from the initial list, with the selection probability based on the system error (the lower the error the more probable an item is to be selected).  Then it selects 10 pairs of "parents" from the list, and generates 40 new items by combining the values of the parent values (taking one of Kd, Ki, Kp from one parent, and the other two from the other, or taking the mean of the Kd, Ki, Kp parameters of the parents). Then the experiment is re-run with the new list, and the process continues until a desired low error is reached.
+There is a significant body of publications that recommends using genetic algorithms to determine ideal gain values.
 
-Unfortunately for this algorithm to work, it has to be possible to run a large amount of experiments with random gain values. The way the simulator is set up, most of the gain combinations cause the car to fall of the road, at which point the simulator no longer moves the car. There is no easy way to control or restart the simulator from the controller application (other than restarting the process and using window messages to restart it, which I decided was against the spirit of the exercise). Also, the simulation only runs at real time, which also limits the speed at which experiments can be run.
+The basic concept is very similar to the Particle Filter algorithm: the genetic algorithm generates, let's say 50 sets of random gains and measures the system error with each of these gains. Then the algorithm randomly selects 10 sets of gains from the initial list, with the selection probability based on the system error (the lower the error the more probable an item is to be selected).  Then it selects 10 pairs of "parents" from the list, and generates 40 new items by combining the values of the parent values (taking one of Kd, Ki, Kp from one parent, and the other two from the other, or taking the mean of the Kd, Ki, Kp parameters of the parents). Some mutations (random parameter changes) are also introduced in this parenting process. Then the experiment is re-run with the new list of the 10 individuals from the old list and the 40 children, and the process continues until a desired low error is reached.
 
-Due to the experiment-unfriendliness of the simulator I gave up on the Genetic Algorithm approach and decided to use a Twiddle approach instead.
+Unfortunately for this algorithm to work, it has to be possible to run a large amount of experiments with random gain values. The way the simulator is set up, most of the gain combinations cause the car to fall of the road, at which point the simulator no longer moves the car. There is no easy way to control or restart the simulator from the controller application (other than restarting the process and using window messages to restart it, which I decided was against the spirit of the exercise). Also, the simulation only runs at real time, which means that each experiment takes around a minute, so one generation of the Genetic Algorithm would run for up to an hour.
+
+Due to the experiment-unfriendliness of the simulator I gave up on running a Genetic Algorithm to fine-tune the parameters, and decided to use a Twiddle approach instead.
 
 #### Twiddle
 
-So I implemented a Twiddle framework in the `twiddle.cpp` file. This framework takes a set of initial gains, a set of initial delta values, an initial error and goal error. The code takes the initial gains and adds the delta value to one of the gains and sets up the PID controller with these new gains. Then it observes the system error (calculated by the average square error) and if it is improved to the previous state, it keeps the new parameters and increases the corresponding delta value. If the error increases, the twiddler tries to subtract the delta from the gain in question and tests again. If this also fails to improve the error, the delta is reduced. Then the twiddler moves on to the next parameter, and repeats this until a desirable goal error is reached.
+I implemented a Twiddle framework in the `twiddle.cpp` file. This framework takes a set of initial gains, a set of initial delta values, an initial error and goal error. The code takes the initial gains and adds the delta value to one of the gains and sets up the PID controller with these new gains. Then it observes the system error (calculated by the mean squared error) and if it is improved to the previous state, it keeps the new parameters and increases the corresponding delta value. If the error increases, the twiddler tries to subtract the delta from the gain in question and tests again. If this also fails to improve the error, the parameter is returned to its original state and the delta is reduced. Then the twiddler moves on to the next parameter, and repeats this process until a desirable goal error is reached.
 
 In order to minimize human supervision, I set up the twiddler to approximate when the car completes a full lap (calculating the travelled distance from speed and time) and start a new step each lap. If the car falls of the road, the simulator has to be manually restarted, but the twiddler detects this scenario as well and considers that run a failed experiment.
 
 I discovered that the result of Twiddling is highly dependent on the initial hyper-parameters: the initial gains and delta values. So I tried a set of essentially random hyperparameters to get a feel for the results they produce. 
 
-Out of all the experiments I got the best results from twiddling my initial Ziegler-Nichols parameters. 
+Out of all the experiments I got the best results from twiddling my initial Ziegler-Nichols parameters, which resulted in Kp=0.331, Ki=0.2419 and Kd=0.798. Other, similarly good (in terms of MSE) solutions were quite far away in the parameter space, for example Kp=0.1, Ki=1.65 and Kd=7.49. This confirmed my feeling that a random, wide search of the parameter space would produce better values than fine-tuning one of the small areas that we discovered by accident.
 
 ### Speed control
 
@@ -71,7 +73,7 @@ Finally I tried to see how fast the car can negotiate the course. I quickly disc
 
 I also tried using the error value or the accumulated integral error from the steering controller to determine  the speed, but I got the best results by using the steering angle.
 
-With this simple tweak, I managed to reach top speeds of around 60mph and go around the track in around 55 seconds. With smarter speed control I'm sure this could be improved.
+With this simple tweak, I managed to reach top speeds of around 60mph and go around the track in around 55 seconds (corresponding to an average speed of 78 km/h). With smarter speed control I'm sure this could be improved.
 
 ### Shortcomings
 
