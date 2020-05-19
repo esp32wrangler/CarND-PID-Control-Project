@@ -6,35 +6,8 @@
 #include "PID.h"
 #include "twiddle.hpp"
 #include <ctime>
-
-//Trying 0.316,0.241906,0.79
-//Restarting after 1200 meters 55.418
-//Error 0.791722
-
-// lower speed
-// Trying 0.311,0.241906,0.79
-// Restarting after 1200 meters 56.367
-// Error 0.761237 best error 0.798645
-// Success,
-
-//std::vector<double> initial_params{2,1,3};
-//std::vector<double> deltas{1.9, 0.9, 2.9};
-//Trying 0.1,1.6561,7.49366
-//Restarting after 1200 meters 90.622
-//Error 0.734351
-     //status  0.1,1.6561,7.49366 0.313698,0.165104,0.650225
-//0.1,1.6561,7.96768
-//Restarting after 1200 meters 90.645
-//Error 0.643671 best error 0.734351
-//Success,
-
-//Trying 0.305,1.6561,7.96768
-//Restarting after 1200 meters 92.455
-//Error 0.44371 best error 0.643671
-//Success,
-
-//0.305,1.56862,7.94319
-//Error 0.425755 best error 0.443319
+#include <fstream>
+#include "base64.h"
 
 
 // for convenience
@@ -67,7 +40,8 @@ int main() {
 
   PID pid_steering;
   PID pid_throttle;
-  std::vector<double> initial_params{0.305,1.56862,7.94319};
+  std::vector<double> initial_params{0.311,0.241906,0.79};
+  // delta zeroed out for taking final video (essentially turning of the Twiddler
   std::vector<double> deltas{0, 0, 0};
   Twiddle twiddler (initial_params, deltas, 0.1, 0.643671);
   
@@ -76,27 +50,33 @@ int main() {
    * TODO: Initialize the pid variable.
    */
   
-  //pid_steering.Init(0.035, 0.016, 0.029);
-  // before speed pid_steering.Init(0.05, 0.011, 0.05);
-  //pid_steering.Init(0.1, 0.1, 0.3);
   pid_steering.Init(params[0], params[1], params[2]);
-  pid_throttle.Init(1, 0, 0);
-//  pid_throttle.Init(0.016, 0.0074, 0.025);
+  // simple PD controller, as setpoint error doesn't really matter
+  pid_throttle.Init(0.2, 0, 0.08);
+  int img_count = 0;
   
   auto t_start = std::chrono::high_resolution_clock::now();
 
-  h.onMessage([&pid_steering, &pid_throttle, &t_start, &twiddler](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&pid_steering, &pid_throttle, &t_start, &twiddler, &img_count](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
       auto s = hasData(string(data).substr(0, length));
-
+      
       if (s != "") {
         auto j = json::parse(s);
 
         string event = j[0].get<string>();
+        auto image = j[1]["image"].get<string>();
+        char buff[100];
+        snprintf(buff, sizeof(buff), "%04d.jpg", img_count);
+        auto decoded_image = base64_decode(image, false);
+        std::ofstream imagefile (buff, std::ios::out | std::ios::binary);
+        imagefile << decoded_image;
+        imagefile.close();
+        img_count++;
 
 //        std::cout << "Event " << event << std::endl;
         if (event == "telemetry") {
