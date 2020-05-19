@@ -50,7 +50,7 @@ P too small:
 
 P too big:
 
-[![](writeup_images/thumbnail_ptoosmall.png)](https://drive.google.com/file/d/1B3PEGk28VTgAz8cCGpeAxrJTpa5jty4Z)
+[![](writeup_images/thumbnail_ptoobig.png)](https://drive.google.com/file/d/1B3PEGk28VTgAz8cCGpeAxrJTpa5jty4Z)
 
 In order to control the vehicle's speed I also added a secondary PID controller to output throttle values based on a set target speed. I quickly hand-tuned it with some plausible parameters that keep the speed around the target speed and don't cause unnecessarily hard breaking or acceleration.
 
