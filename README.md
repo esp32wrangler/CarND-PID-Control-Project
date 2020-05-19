@@ -41,12 +41,15 @@ I used the following rules of thumb to tweak the parameters:
 Some examples of these faults:
 
 Integral oscillations:
+
 [![](writeup_images/thumbnail_integral.png)](https://drive.google.com/file/d/13KflVkPoGhLEILyZ_nQklrjZUOMANrEA) 
 
 P too small:
+
 [![](writeup_images/thumbnail_ptoosmall.png)](https://drive.google.com/file/d/1hsc8r5ioeAHZyVJYW-MIYJ5ERMtBC0mj)
 
 P too big:
+
 [![](writeup_images/thumbnail_ptoosmall.png)](https://drive.google.com/file/d/1B3PEGk28VTgAz8cCGpeAxrJTpa5jty4Z)
 
 In order to control the vehicle's speed I also added a secondary PID controller to output throttle values based on a set target speed. I quickly hand-tuned it with some plausible parameters that keep the speed around the target speed and don't cause unnecessarily hard breaking or acceleration.
