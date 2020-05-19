@@ -80,11 +80,11 @@ Out of all the experiments I got the best results from twiddling my initial Zieg
 
 ### Speed control
 
-Finally I tried to see how fast the car can negotiate the course. I quickly discovered that there are some sharp turns that the car just cannot negotiate if the speed is too high, even with the best possible control. So I added a simple mechanism that check the steering output of the steering PID controller and feeds a lower target speed to the speed PID controller as the steering angle approaches. 
+Finally I tried to see how fast the car can negotiate the course. I quickly discovered that there are some sharp turns that the car just cannot successfully complete if the speed is too high, even with the best possible control. So I added a simple mechanism that check the steering output of the steering PID controller and feeds a lower target speed to the speed PID controller as the steering angle approaches. 
 
 I also tried using the error value or the accumulated integral error from the steering controller to determine  the speed, but I got the best results by using the steering angle.
 
-With this simple tweak, I managed to reach top speeds of around 60mph and go around the track in around 55 seconds (corresponding to an average speed of 78 km/h). With smarter speed control I'm sure this could be improved.
+With this simple tweak, I managed to reach top speeds of around 60mph and go around the track in around 55 seconds (corresponding to an average speed of 78 km/h). With smarter speed control I'm sure this could be improved. It also became clear that the speed controller and the steering controller should be twiddled together to achieve best results, as they have a feedback effect on each other. That excercise is left for the future.
 
 [![](writeup_images/thumbnail_fastrun.png)](https://drive.google.com/file/d/1g4rjPoaA6g9pq96ljQgh9AgkKneILYBs/view?usp=sharing)
 
