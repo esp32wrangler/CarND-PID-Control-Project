@@ -17,14 +17,25 @@
 // Error 0.761237 best error 0.798645
 // Success,
 
-//note: used Ziegler Nichols, finding the critical gain and calculating Ki and Kd from that
-// hand tuning was necessary because the steering quickly went into saturation causing a buildup of
-// the i_error.
-// Used RAWgraphs to visualize data
-// contrary to the python code the time constant was not fixed
-// speed also has an impact on steering
-// speed control is almost perfectly linear, PID controller is mostly for convenience only (reduce hard breaking, hard acceleration)
-// simulator is stochastic, the same parameters result in different run results
+//std::vector<double> initial_params{2,1,3};
+//std::vector<double> deltas{1.9, 0.9, 2.9};
+//Trying 0.1,1.6561,7.49366
+//Restarting after 1200 meters 90.622
+//Error 0.734351
+     //status  0.1,1.6561,7.49366 0.313698,0.165104,0.650225
+//0.1,1.6561,7.96768
+//Restarting after 1200 meters 90.645
+//Error 0.643671 best error 0.734351
+//Success,
+
+//Trying 0.305,1.6561,7.96768
+//Restarting after 1200 meters 92.455
+//Error 0.44371 best error 0.643671
+//Success,
+
+//0.305,1.56862,7.94319
+//Error 0.425755 best error 0.443319
+
 
 // for convenience
 using nlohmann::json;
@@ -56,9 +67,9 @@ int main() {
 
   PID pid_steering;
   PID pid_throttle;
-  std::vector<double> initial_params{0.311,0.241906,0.79};
-  std::vector<double> deltas{0.005, 0.005, 0.005};
-  Twiddle twiddler (initial_params, deltas, 0.1, 0.95);
+  std::vector<double> initial_params{0.305,1.56862,7.94319};
+  std::vector<double> deltas{0, 0, 0};
+  Twiddle twiddler (initial_params, deltas, 0.1, 0.643671);
   
   auto params = twiddler.getParams();
   /**
@@ -69,7 +80,7 @@ int main() {
   // before speed pid_steering.Init(0.05, 0.011, 0.05);
   //pid_steering.Init(0.1, 0.1, 0.3);
   pid_steering.Init(params[0], params[1], params[2]);
-  pid_throttle.Init(0.2, 0, 0.08);
+  pid_throttle.Init(1, 0, 0);
 //  pid_throttle.Init(0.016, 0.0074, 0.025);
   
   auto t_start = std::chrono::high_resolution_clock::now();
@@ -97,7 +108,7 @@ int main() {
           
           
           double dist = pid_steering.TotalDistance();
-          if (dist > 1100)
+          if (dist > 1200)
           {
             std::cout << "Restarting after 1200 meters " << pid_steering.TotalTime() << std::endl;
             auto params = twiddler.getParams();
@@ -168,7 +179,7 @@ int main() {
     }
 
 
-    if (dist > 1000)
+    if (dist > 800)
     {
       twiddler.success(pid_steering.TotalError());
     }

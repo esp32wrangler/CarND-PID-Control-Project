@@ -29,11 +29,19 @@ void Twiddle::failure ()
   {
     case 0:
       parameters[twiddled_parameter] -= 2*deltas[twiddled_parameter];
-      twiddle_step += 1;
-      break;
+      if (parameters[twiddled_parameter] > 0)
+      {
+        twiddle_step += 1;
+        break;
+      }
+      else
+      {
+        std::cout << "Negative parameter, falling through to next step " << std::endl;
+      }
+      // no break - fall through to next step
     case 1:
       parameters[twiddled_parameter] += deltas[twiddled_parameter];
-      deltas[twiddled_parameter] *= 0.5; // make it more like a binary search
+      deltas[twiddled_parameter] *= 0.9;
       twiddled_parameter = (twiddled_parameter + 1) % parameters.size();
       twiddle_step = 0;
       parameters[twiddled_parameter] += deltas[twiddled_parameter];
