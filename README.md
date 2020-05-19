@@ -10,9 +10,6 @@ The controller software receives an error value from the simulator, which shows 
 [//]: # "Image References"
 
 [image1]: ./writeup_images/rawgraphs.png "Analyzing the error data in RAWgraphs"
-[image2]: ./writeup_images/simulator2.png "Successful run with Dataset 2"
-
-
 
 ## Solution approach
 
@@ -36,10 +33,21 @@ I also tweaked the proportional and derivative terms until the car was able to c
 
 I used the following rules of thumb to tweak the parameters:
 
-- If the car went into an oscillation, it meant that the derivative term may be too low or the proportional term too high
+- If the car went into a rapid oscillation, it meant that the derivative term may be too low or the proportional term too high
 - If the car fell off the road on the outside of a turn, it meant that the proportional term was too low
 - If the car fell off the road on the inside of the turn, it meant that the integral term was too large
-- If the car was following the general direction of the road but kept to one side of the road it meant that the integral term was too low. 
+- If the car was following the general direction but kept going into a long oscillation, it meant that the integral term was too low or too high
+
+Some examples of these faults:
+
+Integral oscillations:
+[![](writeup_images/thumbnail_integral.png)](https://drive.google.com/file/d/13KflVkPoGhLEILyZ_nQklrjZUOMANrEA) 
+
+P too small:
+[![](writeup_images/thumbnail_ptoosmall.png)](https://drive.google.com/file/d/1hsc8r5ioeAHZyVJYW-MIYJ5ERMtBC0mj)
+
+P too big:
+[![](writeup_images/thumbnail_ptoosmall.png)](https://drive.google.com/file/d/1B3PEGk28VTgAz8cCGpeAxrJTpa5jty4Z)
 
 In order to control the vehicle's speed I also added a secondary PID controller to output throttle values based on a set target speed. I quickly hand-tuned it with some plausible parameters that keep the speed around the target speed and don't cause unnecessarily hard breaking or acceleration.
 
@@ -74,6 +82,8 @@ Finally I tried to see how fast the car can negotiate the course. I quickly disc
 I also tried using the error value or the accumulated integral error from the steering controller to determine  the speed, but I got the best results by using the steering angle.
 
 With this simple tweak, I managed to reach top speeds of around 60mph and go around the track in around 55 seconds (corresponding to an average speed of 78 km/h). With smarter speed control I'm sure this could be improved.
+
+[![](writeup_images/thumbnail_fastrun.png)](https://drive.google.com/file/d/1g4rjPoaA6g9pq96ljQgh9AgkKneILYBs/view?usp=sharing)
 
 ### Shortcomings
 
