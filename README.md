@@ -68,6 +68,10 @@ Unfortunately for this algorithm to work, it has to be possible to run a large a
 
 Due to the experiment-unfriendliness of the simulator I gave up on running a Genetic Algorithm to fine-tune the parameters, and decided to use a Twiddle approach instead.
 
+#### Gradient Descent
+
+I also investigated a gradient descent approach, trying to use the proportional, integral and derivative errors to fine-tune the gain parameters (by multiplying them with a small learning rate parameter). I couldn't get this to reliably work and produce better values than the Twiddler below. After I finished the project I found a video from Kiril Cvetkov who managed to make this work, and I was curious to see how he did it, but I couldn't find the corresponding code in his GitHub :( I also couldn't find any easily digestible papers describing this approach.
+
 #### Twiddle
 
 I implemented a Twiddle framework in the `twiddle.cpp` file. This framework takes a set of initial gains, a set of initial delta values, an initial error and goal error (the purpose of the initial error is to allow restarting a twiddling process after stopping it). The code takes the initial gains and adds the delta value to one of the gains and sets up the PID controller with these new gains. Then it observes the system error (calculated by the mean squared error) and if it is improved to the previous state, it keeps the new parameters and increases the corresponding delta value. If the error increases, the Twiddler tries to subtract the delta from the gain in question and tests again. If this also fails to improve the error, the parameter is returned to its original state and the delta is reduced. Then the Twiddler moves on to the next parameter, and repeats this process until a desirable goal error is reached.
