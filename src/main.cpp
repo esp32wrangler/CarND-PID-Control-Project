@@ -53,11 +53,10 @@ int main() {
   pid_steering.Init(params[0], params[1], params[2]);
   // simple PD controller, as setpoint error doesn't really matter
   pid_throttle.Init(0.2, 0, 0.08);
-  int img_count = 0;
   
   auto t_start = std::chrono::high_resolution_clock::now();
 
-  h.onMessage([&pid_steering, &pid_throttle, &t_start, &twiddler, &img_count](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&pid_steering, &pid_throttle, &t_start, &twiddler](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -69,15 +68,7 @@ int main() {
         auto j = json::parse(s);
 
         string event = j[0].get<string>();
-        auto image = j[1]["image"].get<string>();
-        char buff[100];
-        snprintf(buff, sizeof(buff), "%04d.jpg", img_count);
-        auto decoded_image = base64_decode(image, false);
-        std::ofstream imagefile (buff, std::ios::out | std::ios::binary);
-        imagefile << decoded_image;
-        imagefile.close();
-        img_count++;
-
+  
 //        std::cout << "Event " << event << std::endl;
         if (event == "telemetry") {
           // j[1] is the data JSON object
